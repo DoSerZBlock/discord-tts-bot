@@ -1,0 +1,11 @@
+services:
+  bot:
+    build:
+      context: .
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    command: ["node", "dist/index.js"]
