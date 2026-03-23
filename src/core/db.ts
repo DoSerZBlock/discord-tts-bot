@@ -1,11 +1,13 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { DEFAULT_TTS_SPEECH_RATE, normalizeTtsSpeechRate, parseTtsSpeechRate, type TtsSpeechRate } from './ttsSettings';
 
 export class GuildSettingsStore {
   private readonly db: Database.Database;
   private readonly guildChannelCache = new Map<string, string>();
   private readonly autoJoinCache = new Map<string, Set<string>>();
+  private readonly guildSpeechRateCache = new Map<string, TtsSpeechRate>();
 
   public constructor(databasePath: string) {
     mkdirSync(path.dirname(databasePath), { recursive: true });
@@ -26,11 +28,19 @@ export class GuildSettingsStore {
         PRIMARY KEY (guild_id, user_id)
       );
     `);
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS guild_tts_settings (
+        guild_id TEXT PRIMARY KEY,
+        speech_rate REAL NOT NULL DEFAULT 1,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
   }
 
   public loadAll(): ReadonlyMap<string, string> {
     this.guildChannelCache.clear();
     this.autoJoinCache.clear();
+    this.guildSpeechRateCache.clear();
 
     const rows = this.db.prepare('SELECT guild_id, channel_id FROM guild_settings').all() as Array<{
       guild_id: string;
@@ -50,6 +60,15 @@ export class GuildSettingsStore {
       const guildUsers = this.autoJoinCache.get(row.guild_id) ?? new Set<string>();
       guildUsers.add(row.user_id);
       this.autoJoinCache.set(row.guild_id, guildUsers);
+    }
+
+    const speechRateRows = this.db.prepare('SELECT guild_id, speech_rate FROM guild_tts_settings').all() as Array<{
+      guild_id: string;
+      speech_rate: string | number;
+    }>;
+
+    for (const row of speechRateRows) {
+      this.guildSpeechRateCache.set(row.guild_id, parseTtsSpeechRate(row.speech_rate) ?? DEFAULT_TTS_SPEECH_RATE);
     }
 
     return new Map(this.guildChannelCache);
@@ -79,6 +98,28 @@ export class GuildSettingsStore {
     const result = this.db.prepare('DELETE FROM guild_settings WHERE guild_id = ?').run(guildId);
     this.guildChannelCache.delete(guildId);
     return result.changes > 0;
+  }
+
+  public getSpeechRate(guildId: string): TtsSpeechRate {
+    return this.guildSpeechRateCache.get(guildId) ?? DEFAULT_TTS_SPEECH_RATE;
+  }
+
+  public setSpeechRate(guildId: string, speechRate: TtsSpeechRate): void {
+    const normalizedSpeechRate = normalizeTtsSpeechRate(speechRate);
+
+    this.db
+      .prepare(
+        `
+          INSERT INTO guild_tts_settings (guild_id, speech_rate, updated_at)
+          VALUES (?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(guild_id) DO UPDATE SET
+            speech_rate = excluded.speech_rate,
+            updated_at = CURRENT_TIMESTAMP
+        `
+      )
+      .run(guildId, normalizedSpeechRate);
+
+    this.guildSpeechRateCache.set(guildId, normalizedSpeechRate);
   }
 
   public isAutoJoinEnabled(guildId: string, userId: string): boolean {

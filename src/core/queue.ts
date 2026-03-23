@@ -9,6 +9,7 @@ import {
 import type { AudioPlayer, VoiceConnection } from '@discordjs/voice';
 import type { Logger } from '../logger';
 import type { TtsService } from './tts';
+import type { TtsSpeechRate } from './ttsSettings';
 
 export const VOICE_SESSION_INACTIVITY_MS = 3 * 60 * 60 * 1000;
 
@@ -45,6 +46,7 @@ interface QueueItem {
   textChannelId: string;
   memberDisplayName: string;
   content: string;
+  speechRate: TtsSpeechRate;
 }
 
 interface ServerQueue {
@@ -72,6 +74,7 @@ export interface EnqueuePayload {
   voiceChannelId: string;
   memberDisplayName: string;
   content: string;
+  speechRate: TtsSpeechRate;
   voiceChannel: VoiceChannelLike;
 }
 
@@ -171,7 +174,8 @@ export class QueueManager {
     queue.items.push({
       textChannelId: payload.textChannelId,
       memberDisplayName: payload.memberDisplayName,
-      content: payload.content
+      content: payload.content,
+      speechRate: payload.speechRate
     });
 
     if (status === 'started') {
@@ -350,7 +354,7 @@ export class QueueManager {
     queue.currentItem = nextItem;
 
     try {
-      const resource = await this.options.ttsService.createAudioResource(nextItem.content);
+      const resource = await this.options.ttsService.createAudioResource(nextItem.content, nextItem.speechRate);
       queue.player.play(resource);
     } catch (error) {
       queue.currentItem = null;

@@ -34,6 +34,7 @@ export const joinCommand: CommandDefinition = {
       voiceChannelId: voiceChannel.id,
       memberDisplayName: member?.displayName ?? interaction.user.displayName,
       content: '',
+      speechRate: context.settingsStore.getSpeechRate(interaction.guildId),
       voiceChannel
     });
 

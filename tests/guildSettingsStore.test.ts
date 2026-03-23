@@ -2,6 +2,7 @@ import { mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
+import Database from 'better-sqlite3';
 import { GuildSettingsStore } from '../src/core/db';
 
 const createdDirs: string[] = [];
@@ -73,5 +74,45 @@ describe('GuildSettingsStore', () => {
 
     expect(store.isAutoJoinEnabled('guild-1', 'user-1')).toBe(false);
     store.close();
+  });
+
+  it('stores and reloads per-guild speech rate settings', () => {
+    const databasePath = createDatabasePath();
+    const firstStore = new GuildSettingsStore(databasePath);
+
+    firstStore.loadAll();
+    expect(firstStore.getSpeechRate('guild-1')).toBe(1);
+    firstStore.setSpeechRate('guild-1', 1.25);
+    expect(firstStore.getSpeechRate('guild-1')).toBe(1.25);
+    firstStore.close();
+
+    const secondStore = new GuildSettingsStore(databasePath);
+    secondStore.loadAll();
+
+    expect(secondStore.getSpeechRate('guild-1')).toBe(1.25);
+    secondStore.close();
+  });
+
+  it('loads legacy speech-rate values stored as normal or slow', () => {
+    const databasePath = createDatabasePath();
+    const store = new GuildSettingsStore(databasePath);
+
+    store.close();
+
+    const db = new Database(databasePath);
+    db.prepare(
+      `
+        INSERT INTO guild_tts_settings (guild_id, speech_rate)
+        VALUES (?, ?), (?, ?)
+      `
+    ).run('guild-normal', 'normal', 'guild-slow', 'slow');
+    db.close();
+
+    const reloadedStore = new GuildSettingsStore(databasePath);
+    reloadedStore.loadAll();
+
+    expect(reloadedStore.getSpeechRate('guild-normal')).toBe(1);
+    expect(reloadedStore.getSpeechRate('guild-slow')).toBe(0.75);
+    reloadedStore.close();
   });
 });

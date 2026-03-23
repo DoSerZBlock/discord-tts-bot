@@ -31,7 +31,8 @@ describe('processMessageForTts', () => {
         },
         {
           settingsStore: {
-            get: () => 'text-1'
+            get: () => 'text-1',
+            getSpeechRate: () => 1
           },
           queueManager: {
             enqueue,
@@ -62,7 +63,8 @@ describe('processMessageForTts', () => {
         },
         {
           settingsStore: {
-            get: () => 'text-1'
+            get: () => 'text-1',
+            getSpeechRate: () => 1
           },
           queueManager: {
             enqueue,
@@ -91,7 +93,8 @@ describe('processMessageForTts', () => {
         },
         {
           settingsStore: {
-            get: () => 'text-1'
+            get: () => 'text-1',
+            getSpeechRate: () => 1
           },
           queueManager: {
             enqueue,
@@ -122,7 +125,8 @@ describe('processMessageForTts', () => {
         },
         {
           settingsStore: {
-            get: () => 'text-1'
+            get: () => 'text-1',
+            getSpeechRate: () => 1.25
           },
           queueManager: {
             enqueue,
@@ -136,7 +140,8 @@ describe('processMessageForTts', () => {
 
     expect(enqueue).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: 'hello world'
+        content: 'hello world',
+        speechRate: 1.25
       })
     );
   });

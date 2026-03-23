@@ -22,7 +22,7 @@ export interface TtsMessageInput {
 export async function processMessageForTts(
   message: TtsMessageInput,
   dependencies: {
-    settingsStore: Pick<GuildSettingsStore, 'get'>;
+    settingsStore: Pick<GuildSettingsStore, 'get' | 'getSpeechRate'>;
     queueManager: Pick<QueueManager, 'enqueue' | 'getState'>;
   }
 ): Promise<'ignored' | import('./queue').EnqueueStatus> {
@@ -60,6 +60,7 @@ export async function processMessageForTts(
     voiceChannelId: voiceChannel.id,
     memberDisplayName: message.member.displayName,
     content: sanitizedContent,
+    speechRate: dependencies.settingsStore.getSpeechRate(message.guildId),
     voiceChannel
   });
 

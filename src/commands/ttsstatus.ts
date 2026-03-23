@@ -1,4 +1,5 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { getTtsSpeechRateLabel } from '../core/ttsSettings';
 import type { CommandDefinition } from './command';
 import { replyEphemeral } from './utils';
 
@@ -14,10 +15,12 @@ export const ttsStatusCommand: CommandDefinition = {
     }
 
     const boundChannelId = context.settingsStore.get(interaction.guildId);
+    const speechRate = context.settingsStore.getSpeechRate(interaction.guildId);
     const queueState = context.queueManager.getState(interaction.guildId);
 
     const lines = [
       `綁定文字頻道：${boundChannelId ? `<#${boundChannelId}>` : '未設定'}`,
+      `TTS 倍速：${getTtsSpeechRateLabel(speechRate)}`,
       `播放狀態：${
         queueState ? `已連線 <#${queueState.lockedVoiceChannelId}>，待播 ${queueState.pendingCount} 筆` : '目前沒有語音連線'
       }`

@@ -6,6 +6,7 @@ import {
   type VoiceChannelLike
 } from '../src/core/queue';
 import type { Logger } from '../src/logger';
+import type { TtsSpeechRate } from '../src/core/ttsSettings';
 
 class FakePlayer {
   public playedResources: string[] = [];
@@ -79,6 +80,7 @@ function createPayload(overrides: Partial<EnqueuePayload> = {}): EnqueuePayload 
     voiceChannelId: 'voice-1',
     memberDisplayName: 'Alice',
     content: 'hello world',
+    speechRate: 1,
     voiceChannel,
     ...overrides
   };
@@ -165,6 +167,23 @@ describe('QueueManager', () => {
 
     await vi.waitFor(() => {
       expect(voiceRuntime.player?.playedResources).toEqual(['resource:hello world', 'resource:second item']);
+    });
+  });
+
+  it('passes the queued speech rate to the tts service', async () => {
+    const createAudioResource = vi.fn(async (text: string, speechRate: TtsSpeechRate) => `resource:${text}:${speechRate}`);
+    const queueManager = new QueueManager({
+      logger: silentLogger,
+      ttsService: {
+        createAudioResource
+      },
+      voiceRuntime: new FakeVoiceRuntime()
+    });
+
+    await expect(queueManager.enqueue(createPayload({ speechRate: 1.5 }))).resolves.toEqual({ status: 'started' });
+
+    await vi.waitFor(() => {
+      expect(createAudioResource).toHaveBeenCalledWith('hello world', 1.5);
     });
   });
 

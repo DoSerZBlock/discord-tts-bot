@@ -20,6 +20,7 @@ describe('handleTypingStart', () => {
     const context = {
       settingsStore: {
         get: () => 'text-1',
+        getSpeechRate: () => 1.25,
         isAutoJoinEnabled: () => true
       },
       queueManager: {
@@ -52,7 +53,8 @@ describe('handleTypingStart', () => {
       expect.objectContaining({
         guildId: 'guild-1',
         textChannelId: 'text-1',
-        voiceChannelId: 'voice-1'
+        voiceChannelId: 'voice-1',
+        speechRate: 1.25
       })
     );
   });

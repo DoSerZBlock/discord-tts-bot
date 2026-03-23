@@ -1,22 +1,40 @@
-import { handleConfigButton, isConfigButton } from '../commands/config';
+import { handleConfigModalSubmit, handleConfigSelect, isConfigModal, isConfigSelect } from '../commands/config';
 import { replyEphemeral } from '../commands/utils';
 import type { EventDefinition } from './event';
 
 export const interactionCreateEvent: EventDefinition<'interactionCreate'> = {
   name: 'interactionCreate',
   async execute(context, interaction) {
-    if (interaction.isButton()) {
-      if (!isConfigButton(interaction.customId)) {
+    if (interaction.isStringSelectMenu()) {
+      if (!isConfigSelect(interaction.customId)) {
         return;
       }
 
       try {
-        await handleConfigButton(interaction, context);
+        await handleConfigSelect(interaction, context);
       } catch (error) {
-        context.logger.error(`Button interaction failed: ${interaction.customId}`, error);
+        context.logger.error(`Select interaction failed: ${interaction.customId}`, error);
         await replyEphemeral(interaction, {
           title: '發生錯誤',
-          description: '更新個人設定時發生錯誤，請稍後再試。'
+          description: '更新設定時發生錯誤，請稍後再試。'
+        });
+      }
+
+      return;
+    }
+
+    if (interaction.isModalSubmit()) {
+      if (!isConfigModal(interaction.customId)) {
+        return;
+      }
+
+      try {
+        await handleConfigModalSubmit(interaction, context);
+      } catch (error) {
+        context.logger.error(`Modal interaction failed: ${interaction.customId}`, error);
+        await replyEphemeral(interaction, {
+          title: '發生錯誤',
+          description: '更新設定時發生錯誤，請稍後再試。'
         });
       }
 

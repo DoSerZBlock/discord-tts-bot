@@ -2,22 +2,26 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   EmbedBuilder,
-  MessageFlags
+  MessageFlags,
+  StringSelectMenuBuilder
 } from 'discord.js';
 import type {
   APIEmbedField,
   ButtonInteraction,
   ChatInputCommandInteraction,
-  GuildMember
+  GuildMember,
+  ModalSubmitInteraction,
+  StringSelectMenuInteraction
 } from 'discord.js';
 
-type RepliableInteraction = ChatInputCommandInteraction | ButtonInteraction;
+type MessageComponentBuilder = ButtonBuilder | StringSelectMenuBuilder;
+type RepliableInteraction = ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
 
 interface EmbedReplyOptions {
   title?: string;
   description: string;
   fields?: APIEmbedField[];
-  components?: Array<ActionRowBuilder<ButtonBuilder>>;
+  components?: Array<ActionRowBuilder<MessageComponentBuilder>>;
 }
 
 const DEFAULT_EMBED_COLOR = 0x5865f2;
@@ -72,8 +76,8 @@ export async function replyEphemeral(
   await interaction.reply(payload);
 }
 
-export async function updateEphemeralButton(
-  interaction: ButtonInteraction,
+export async function updateEphemeralComponent(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
   content: string | EmbedReplyOptions
 ): Promise<void> {
   const options = typeof content === 'string' ? { description: content } : content;
@@ -85,7 +89,9 @@ export async function updateEphemeralButton(
   });
 }
 
-export async function fetchInteractionMember(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<GuildMember | null> {
+export async function fetchInteractionMember(
+  interaction: ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction
+): Promise<GuildMember | null> {
   if (!interaction.inGuild() || !interaction.guild) {
     return null;
   }

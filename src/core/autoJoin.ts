@@ -10,7 +10,7 @@ export async function maybeAutoJoinFromTextActivity(
     voiceChannel: VoiceChannelLike | null;
   },
   dependencies: {
-    settingsStore: Pick<GuildSettingsStore, 'get' | 'isAutoJoinEnabled'>;
+    settingsStore: Pick<GuildSettingsStore, 'get' | 'getSpeechRate' | 'isAutoJoinEnabled'>;
     queueManager: Pick<QueueManager, 'connect'>;
   }
 ): Promise<boolean> {
@@ -34,6 +34,7 @@ export async function maybeAutoJoinFromTextActivity(
     voiceChannelId: input.voiceChannel.id,
     memberDisplayName: input.memberDisplayName,
     content: '',
+    speechRate: dependencies.settingsStore.getSpeechRate(input.guildId),
     voiceChannel: input.voiceChannel
   });
 
