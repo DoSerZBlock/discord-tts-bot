@@ -1,70 +1,107 @@
-# discord-tts-bot
+# Discord TTS Bot
 
-以 TypeScript、`discord.js`、`@discordjs/voice`、`better-sqlite3` 與 `google-tts-api` 建立的 Discord TTS 機器人。它支援多 guild 獨立佇列、SQLite 持久化綁定文字頻道，以及在綁定頻道發文時自動朗讀。
+Chinese version: [README_TW.md](./README_TW.md)
 
-## 功能
+A Discord text-to-speech bot built with TypeScript, `discord.js`, `@discordjs/voice`, `better-sqlite3`, and `google-tts-api`.
 
-- `/sync`：重新同步目前 bot 的 slash commands
-- `/config`：用 embed 畫面調整你的個人設定，例如自動進入語音
-- `/settts [channel]`：設定 TTS 監聽文字頻道
-- `/cleartts`：移除目前 guild 的 TTS 綁定
-- `/ttsstatus`：查看綁定頻道與佇列狀態
-- `/join`：主動讓機器人加入你目前所在的語音頻道
-- `/skip`：跳過目前播放中的 TTS
-- `/stop`：清空佇列並離開語音頻道
-- 每個 guild 擁有獨立的語音佇列與語音連線
-- 若同 guild 已鎖定某個語音頻道播放，其他語音頻道的訊息會被靜默忽略
-- 使用者可為自己開啟 auto-join，當他已在語音中並在綁定打字頻道開始打字或發訊時，讓機器人自動進入
-- 機器人的互動回覆統一使用 embed
+It is designed for multi-guild usage with persistent guild settings, per-guild voice queues, text-channel binding, user-level auto-join preferences, and configurable TTS playback speed.
 
-## 環境需求
+## Features
+
+- Per-guild TTS text-channel binding with SQLite persistence
+- Independent voice queue and voice session per guild
+- Embed-based `/config` panel for personal and guild settings
+- Per-user auto-join toggle inside each guild
+- Per-guild TTS playback speed, with presets and custom input from `0.5x` to `2.0x`
+- Message cleanup for TTS, including:
+  - mention replacement
+  - custom emoji shortening
+  - shortcode-style emoji shortening
+  - URL shortening such as `youtube` links
+- Queue and session controls with `/join`, `/skip`, `/stop`, and `/ttsstatus`
+- Docker-ready runtime with persisted SQLite data
+
+## Commands
+
+- `/sync`
+  Re-sync slash commands for the current bot deployment.
+- `/config`
+  Open the embed settings panel. Personal auto-join is stored per user per guild. TTS speed is stored per guild.
+- `/settts [channel]`
+  Set the text channel that should be read aloud.
+- `/cleartts`
+  Remove the current guild's TTS channel binding.
+- `/ttsstatus`
+  Show the current bound text channel, queue state, and current TTS speed.
+- `/join`
+  Ask the bot to join your current voice channel.
+- `/skip`
+  Skip the currently playing TTS item.
+- `/stop`
+  Clear the queue and disconnect the bot from voice.
+
+## Settings Scope
+
+- Personal auto-join:
+  Stored per user per guild.
+- TTS speed:
+  Stored per guild.
+
+Changing the speed in one guild does not affect other guilds.
+
+## Requirements
 
 - Node.js 20+
-- Discord Bot 已啟用下列 Gateway Intents
+- `ffmpeg`
+- A Discord bot with these gateway intents enabled:
   - `Guilds`
   - `GuildMessages`
   - `GuildMessageTyping`
   - `GuildVoiceStates`
   - `MessageContent`
-- 系統安裝 `ffmpeg`
 
-## 安裝與啟動
+## Environment Variables
 
-1. 安裝依賴：
+Copy [.env.example](./.env.example) to `.env` and configure:
 
-   ```bash
-   npm install
-   ```
+- `DISCORD_TOKEN`
+  Your Discord bot token.
+- `CLIENT_ID`
+  Your Discord application client ID.
+- `DEV_GUILD_ID`
+  Optional. If set, slash commands are registered only to that guild.
+- `DATABASE_PATH`
+  Optional. Defaults to `./data/tts_config.db`.
+- `TTS_LANGUAGE`
+  Optional. Defaults to `zh-TW`.
 
-2. 建立環境變數：
+## Local Setup
 
-   ```bash
-   cp .env.example .env
-   ```
+1. Install dependencies.
 
-3. 填入 `.env`：
+```bash
+npm install
+```
 
-   - `DISCORD_TOKEN`
-   - `CLIENT_ID`
-   - `DEV_GUILD_ID`：選填。若有值，slash commands 只註冊到該 guild。
-   - `DATABASE_PATH`：預設 `./data/tts_config.db`
-   - `TTS_LANGUAGE`：預設 `zh-TW`
+2. Create your environment file.
 
-4. 註冊 slash commands：
+```bash
+cp .env.example .env
+```
 
-   ```bash
-   npm run sync
-   ```
+3. Register slash commands.
 
-   若 bot 已經在線上，之後也可以直接在 Discord 內使用 `/sync` 重新同步指令。
+```bash
+npm run sync
+```
 
-5. 啟動 bot：
+4. Start the bot in development mode.
 
-   ```bash
-   npm run dev
-   ```
+```bash
+npm run dev
+```
 
-## 建置與測試
+## Build and Test
 
 ```bash
 npm run build
@@ -73,16 +110,22 @@ npm test
 
 ## Docker
 
-建立並啟動：
+Build and start:
 
 ```bash
 docker compose up --build -d
 ```
 
-註冊 commands：
+Register production slash commands:
 
 ```bash
 docker compose run --rm bot npm run sync:prod
 ```
 
-SQLite 檔案會透過 `./data:/app/data` volume 保留在主機端。
+SQLite data is persisted through the `./data:/app/data` volume mapping.
+
+## Notes
+
+- The bot only reads messages from the bound text channel for each guild.
+- If a guild voice session is already locked to another voice channel, messages from other voice channels in that guild are ignored.
+- The bot keeps waiting in voice after playback and disconnects later if the bound text channel stays inactive long enough.
