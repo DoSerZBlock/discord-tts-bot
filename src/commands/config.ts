@@ -2,12 +2,13 @@ import {
   ActionRowBuilder,
   ModalBuilder,
   PermissionFlagsBits,
+  RoleSelectMenuBuilder,
   SlashCommandBuilder,
   StringSelectMenuBuilder,
   TextInputBuilder,
   TextInputStyle
 } from 'discord.js';
-import type { ChatInputCommandInteraction, ModalSubmitInteraction, StringSelectMenuInteraction } from 'discord.js';
+import type { ChatInputCommandInteraction, ModalSubmitInteraction, RoleSelectMenuInteraction, StringSelectMenuInteraction } from 'discord.js';
 import {
   formatTtsSpeechRate,
   getTtsSpeechRateLabel,
@@ -26,17 +27,27 @@ const AUTO_JOIN_CUSTOM_ID = 'config:autojoin';
 const SPEECH_RATE_CUSTOM_ID = 'config:speech-rate';
 const SPEECH_RATE_MODAL_CUSTOM_ID = 'config:speech-rate:modal';
 const SPEECH_RATE_INPUT_CUSTOM_ID = 'config:speech-rate:input';
+const VOICE_ROLE_TOGGLE_CUSTOM_ID = 'config:voice-role:toggle';
+const VOICE_ROLE_SELECT_CUSTOM_ID = 'config:voice-role:select';
 const CUSTOM_SPEECH_RATE_VALUE = 'custom';
 
-type ConfigSection = 'personal_autojoin' | 'guild_speech_rate';
-type ConfigInteraction = ChatInputCommandInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
+type ConfigSection = 'personal_autojoin' | 'guild_speech_rate' | 'guild_voice_role';
+type ConfigInteraction =
+  | ChatInputCommandInteraction
+  | StringSelectMenuInteraction
+  | RoleSelectMenuInteraction
+  | ModalSubmitInteraction;
 
 function hasManageGuildPermission(interaction: ConfigInteraction): boolean {
   return interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
 }
 
 function resolveConfigSection(value: string | undefined): ConfigSection {
-  return value === 'guild_speech_rate' ? 'guild_speech_rate' : 'personal_autojoin';
+  if (value === 'guild_speech_rate' || value === 'guild_voice_role') {
+    return value;
+  }
+
+  return 'personal_autojoin';
 }
 
 function isSameSpeechRate(left: TtsSpeechRate, right: TtsSpeechRate): boolean {
@@ -64,6 +75,12 @@ function buildSectionSelector(selectedSection: ConfigSection): ActionRowBuilder<
           description: '調整這個伺服器的機器人朗讀倍速',
           value: 'guild_speech_rate',
           default: selectedSection === 'guild_speech_rate'
+        },
+        {
+          label: '語音身分組',
+          description: '有人進入任何語音頻道時，自動給指定身分組',
+          value: 'guild_voice_role',
+          default: selectedSection === 'guild_voice_role'
         }
       )
   );
@@ -149,10 +166,45 @@ function buildSpeechRateModal(currentSpeechRate: TtsSpeechRate): ModalBuilder {
     );
 }
 
+function buildVoiceRoleToggleSelector(enabled: boolean, disabled: boolean): ActionRowBuilder<StringSelectMenuBuilder> {
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(VOICE_ROLE_TOGGLE_CUSTOM_ID)
+      .setPlaceholder('調整語音身分組功能')
+      .setDisabled(disabled)
+      .addOptions(
+        {
+          label: '開啟',
+          description: '有人進入任一語音頻道時，自動給指定身分組',
+          value: 'on',
+          default: enabled
+        },
+        {
+          label: '關閉',
+          description: '停止自動給語音身分組',
+          value: 'off',
+          default: !enabled
+        }
+      )
+  );
+}
+
+function buildVoiceRoleSelector(disabled: boolean): ActionRowBuilder<RoleSelectMenuBuilder> {
+  return new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(
+    new RoleSelectMenuBuilder()
+      .setCustomId(VOICE_ROLE_SELECT_CUSTOM_ID)
+      .setPlaceholder('選擇要自動給予的身分組')
+      .setMinValues(1)
+      .setMaxValues(1)
+      .setDisabled(disabled)
+  );
+}
+
 function buildConfigReply(options: {
   selectedSection: ConfigSection;
   autoJoinEnabled: boolean;
   speechRate: TtsSpeechRate;
+  voiceRole: { enabled: boolean; roleId: string | null };
   canManageGuild: boolean;
 }) {
   const fields = [
@@ -165,8 +217,36 @@ function buildConfigReply(options: {
       name: '伺服器 TTS 倍速',
       value: getTtsSpeechRateLabel(options.speechRate),
       inline: true
+    },
+    {
+      name: '語音身分組',
+      value: options.voiceRole.roleId
+        ? `${options.voiceRole.enabled ? '已開啟' : '已關閉'}，身分組：<@&${options.voiceRole.roleId}>`
+        : '未設定身分組',
+      inline: true
     }
   ];
+
+  if (options.selectedSection === 'guild_voice_role') {
+    fields.push({
+      name: '目前設定項目',
+      value: options.canManageGuild
+        ? '選擇身分組後再開啟功能。機器人必須有「管理身分組」權限，且機器人的最高身分組必須高於目標身分組。'
+        : '你可以查看目前設定，但需要「管理伺服器」權限才能調整這個設定。',
+      inline: false
+    });
+
+    return {
+      title: '設定面板',
+      description: '使用下方選單切換要調整的項目。',
+      fields,
+      components: [
+        buildSectionSelector(options.selectedSection),
+        buildVoiceRoleToggleSelector(options.voiceRole.enabled, !options.canManageGuild || !options.voiceRole.roleId),
+        buildVoiceRoleSelector(!options.canManageGuild)
+      ]
+    };
+  }
 
   if (options.selectedSection === 'guild_speech_rate') {
     fields.push({
@@ -217,6 +297,7 @@ function getCurrentConfigState(interaction: ConfigInteraction, context: BotConte
     selectedSection,
     autoJoinEnabled: context.settingsStore.isAutoJoinEnabled(guildId, interaction.user.id),
     speechRate: context.settingsStore.getSpeechRate(guildId),
+    voiceRole: context.settingsStore.getVoiceRoleSettings(guildId),
     canManageGuild: hasManageGuildPermission(interaction)
   });
 }
@@ -230,7 +311,16 @@ function parseSelectedSpeechRate(value: string): TtsSpeechRate | null {
 }
 
 export function isConfigSelect(customId: string): boolean {
-  return customId === CONFIG_PANEL_CUSTOM_ID || customId === AUTO_JOIN_CUSTOM_ID || customId === SPEECH_RATE_CUSTOM_ID;
+  return (
+    customId === CONFIG_PANEL_CUSTOM_ID ||
+    customId === AUTO_JOIN_CUSTOM_ID ||
+    customId === SPEECH_RATE_CUSTOM_ID ||
+    customId === VOICE_ROLE_TOGGLE_CUSTOM_ID
+  );
+}
+
+export function isConfigRoleSelect(customId: string): boolean {
+  return customId === VOICE_ROLE_SELECT_CUSTOM_ID;
 }
 
 export function isConfigModal(customId: string): boolean {
@@ -256,6 +346,25 @@ export async function handleConfigSelect(interaction: StringSelectMenuInteractio
     return;
   }
 
+  if (interaction.customId === VOICE_ROLE_TOGGLE_CUSTOM_ID) {
+    if (!hasManageGuildPermission(interaction)) {
+      await replyEphemeral(interaction, '你需要「管理伺服器」權限才能調整這個設定。');
+      return;
+    }
+
+    const enabled = interaction.values[0] === 'on';
+    const voiceRole = context.settingsStore.getVoiceRoleSettings(interaction.guildId);
+
+    if (enabled && !voiceRole.roleId) {
+      await replyEphemeral(interaction, '請先選擇要自動給予的身分組。');
+      return;
+    }
+
+    context.settingsStore.setVoiceRoleEnabled(interaction.guildId, enabled);
+    await updateEphemeralComponent(interaction, getCurrentConfigState(interaction, context, 'guild_voice_role'));
+    return;
+  }
+
   if (!hasManageGuildPermission(interaction)) {
     await replyEphemeral(interaction, '你需要「管理伺服器」權限才能調整這個設定。');
     return;
@@ -277,6 +386,28 @@ export async function handleConfigSelect(interaction: StringSelectMenuInteractio
 
   context.settingsStore.setSpeechRate(interaction.guildId, selectedSpeechRate);
   await updateEphemeralComponent(interaction, getCurrentConfigState(interaction, context, 'guild_speech_rate'));
+}
+
+export async function handleConfigRoleSelect(interaction: RoleSelectMenuInteraction, context: BotContext): Promise<void> {
+  if (!interaction.inGuild()) {
+    await replyEphemeral(interaction, '這個操作只能在伺服器內使用。');
+    return;
+  }
+
+  if (!hasManageGuildPermission(interaction)) {
+    await replyEphemeral(interaction, '你需要「管理伺服器」權限才能調整這個設定。');
+    return;
+  }
+
+  const selectedRoleId = interaction.values[0];
+
+  if (!selectedRoleId) {
+    await replyEphemeral(interaction, '請選擇一個身分組。');
+    return;
+  }
+
+  context.settingsStore.setVoiceRoleId(interaction.guildId, selectedRoleId);
+  await updateEphemeralComponent(interaction, getCurrentConfigState(interaction, context, 'guild_voice_role'));
 }
 
 export async function handleConfigModalSubmit(interaction: ModalSubmitInteraction, context: BotContext): Promise<void> {

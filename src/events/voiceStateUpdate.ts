@@ -6,8 +6,59 @@ function isVoiceChannelWithMembers(channel: unknown): channel is VoiceBasedChann
   return typeof channel === 'object' && channel !== null && 'members' in channel;
 }
 
+async function assignVoiceRoleOnJoin(oldState: VoiceState, newState: VoiceState, context: BotContext): Promise<void> {
+  if (oldState.channelId !== null || newState.channelId === null) {
+    return;
+  }
+
+  const member = newState.member;
+
+  if (!member || member.user.bot) {
+    return;
+  }
+
+  const voiceRole = context.settingsStore.getVoiceRoleSettings(newState.guild.id);
+
+  if (!voiceRole.enabled || !voiceRole.roleId || member.roles.cache.has(voiceRole.roleId)) {
+    return;
+  }
+
+  try {
+    await member.roles.add(voiceRole.roleId, 'Auto-assign voice role on voice channel join');
+  } catch (error) {
+    context.logger.warn(`Failed to assign voice role ${voiceRole.roleId} in guild ${newState.guild.id}`, error);
+  }
+}
+
+async function removeVoiceRoleOnLeave(oldState: VoiceState, newState: VoiceState, context: BotContext): Promise<void> {
+  if (oldState.channelId === null || newState.channelId !== null) {
+    return;
+  }
+
+  const member = newState.member ?? oldState.member;
+
+  if (!member || member.user.bot) {
+    return;
+  }
+
+  const voiceRole = context.settingsStore.getVoiceRoleSettings(newState.guild.id);
+
+  if (!voiceRole.enabled || !voiceRole.roleId || !member.roles.cache.has(voiceRole.roleId)) {
+    return;
+  }
+
+  try {
+    await member.roles.remove(voiceRole.roleId, 'Auto-remove voice role on voice channel leave');
+  } catch (error) {
+    context.logger.warn(`Failed to remove voice role ${voiceRole.roleId} in guild ${newState.guild.id}`, error);
+  }
+}
+
 export async function handleVoiceStateUpdate(oldState: VoiceState, newState: VoiceState, context: BotContext): Promise<void> {
-  const guildId = oldState.guild.id;
+  await assignVoiceRoleOnJoin(oldState, newState, context);
+  await removeVoiceRoleOnLeave(oldState, newState, context);
+
+  const guildId = newState.guild.id;
   const queueState = context.queueManager.getState(guildId);
 
   if (!queueState) {

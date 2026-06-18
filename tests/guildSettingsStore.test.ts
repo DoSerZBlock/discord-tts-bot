@@ -93,6 +93,26 @@ describe('GuildSettingsStore', () => {
     secondStore.close();
   });
 
+  it('stores and reloads per-guild voice role settings', () => {
+    const databasePath = createDatabasePath();
+    const firstStore = new GuildSettingsStore(databasePath);
+
+    firstStore.loadAll();
+    expect(firstStore.getVoiceRoleSettings('guild-1')).toEqual({ enabled: false, roleId: null });
+    firstStore.setVoiceRoleId('guild-1', 'role-1');
+    firstStore.setVoiceRoleEnabled('guild-1', true);
+    expect(firstStore.getVoiceRoleSettings('guild-1')).toEqual({ enabled: true, roleId: 'role-1' });
+    firstStore.close();
+
+    const secondStore = new GuildSettingsStore(databasePath);
+    secondStore.loadAll();
+
+    expect(secondStore.getVoiceRoleSettings('guild-1')).toEqual({ enabled: true, roleId: 'role-1' });
+    secondStore.setVoiceRoleEnabled('guild-1', false);
+    expect(secondStore.getVoiceRoleSettings('guild-1')).toEqual({ enabled: false, roleId: 'role-1' });
+    secondStore.close();
+  });
+
   it('loads legacy speech-rate values stored as normal or slow', () => {
     const databasePath = createDatabasePath();
     const store = new GuildSettingsStore(databasePath);

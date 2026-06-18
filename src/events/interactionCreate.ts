@@ -1,4 +1,11 @@
-import { handleConfigModalSubmit, handleConfigSelect, isConfigModal, isConfigSelect } from '../commands/config';
+import {
+  handleConfigModalSubmit,
+  handleConfigRoleSelect,
+  handleConfigSelect,
+  isConfigModal,
+  isConfigRoleSelect,
+  isConfigSelect
+} from '../commands/config';
 import { replyEphemeral } from '../commands/utils';
 import type { EventDefinition } from './event';
 
@@ -14,6 +21,24 @@ export const interactionCreateEvent: EventDefinition<'interactionCreate'> = {
         await handleConfigSelect(interaction, context);
       } catch (error) {
         context.logger.error(`Select interaction failed: ${interaction.customId}`, error);
+        await replyEphemeral(interaction, {
+          title: '發生錯誤',
+          description: '更新設定時發生錯誤，請稍後再試。'
+        });
+      }
+
+      return;
+    }
+
+    if (interaction.isRoleSelectMenu()) {
+      if (!isConfigRoleSelect(interaction.customId)) {
+        return;
+      }
+
+      try {
+        await handleConfigRoleSelect(interaction, context);
+      } catch (error) {
+        context.logger.error(`Role select interaction failed: ${interaction.customId}`, error);
         await replyEphemeral(interaction, {
           title: '發生錯誤',
           description: '更新設定時發生錯誤，請稍後再試。'

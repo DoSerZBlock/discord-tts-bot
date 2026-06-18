@@ -3,6 +3,7 @@ import {
   ButtonBuilder,
   EmbedBuilder,
   MessageFlags,
+  RoleSelectMenuBuilder,
   StringSelectMenuBuilder
 } from 'discord.js';
 import type {
@@ -11,11 +12,17 @@ import type {
   ChatInputCommandInteraction,
   GuildMember,
   ModalSubmitInteraction,
+  RoleSelectMenuInteraction,
   StringSelectMenuInteraction
 } from 'discord.js';
 
-type MessageComponentBuilder = ButtonBuilder | StringSelectMenuBuilder;
-type RepliableInteraction = ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
+type MessageComponentBuilder = ButtonBuilder | StringSelectMenuBuilder | RoleSelectMenuBuilder;
+type RepliableInteraction =
+  | ChatInputCommandInteraction
+  | ButtonInteraction
+  | StringSelectMenuInteraction
+  | RoleSelectMenuInteraction
+  | ModalSubmitInteraction;
 
 interface EmbedReplyOptions {
   title?: string;
@@ -77,7 +84,7 @@ export async function replyEphemeral(
 }
 
 export async function updateEphemeralComponent(
-  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  interaction: ButtonInteraction | StringSelectMenuInteraction | RoleSelectMenuInteraction,
   content: string | EmbedReplyOptions
 ): Promise<void> {
   const options = typeof content === 'string' ? { description: content } : content;
@@ -90,7 +97,12 @@ export async function updateEphemeralComponent(
 }
 
 export async function fetchInteractionMember(
-  interaction: ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction
+  interaction:
+    | ChatInputCommandInteraction
+    | ButtonInteraction
+    | StringSelectMenuInteraction
+    | RoleSelectMenuInteraction
+    | ModalSubmitInteraction
 ): Promise<GuildMember | null> {
   if (!interaction.inGuild() || !interaction.guild) {
     return null;

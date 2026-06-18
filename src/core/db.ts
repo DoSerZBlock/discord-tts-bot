@@ -8,6 +8,7 @@ export class GuildSettingsStore {
   private readonly guildChannelCache = new Map<string, string>();
   private readonly autoJoinCache = new Map<string, Set<string>>();
   private readonly guildSpeechRateCache = new Map<string, TtsSpeechRate>();
+  private readonly guildVoiceRoleCache = new Map<string, { enabled: boolean; roleId: string | null }>();
 
   public constructor(databasePath: string) {
     mkdirSync(path.dirname(databasePath), { recursive: true });
@@ -35,12 +36,21 @@ export class GuildSettingsStore {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS guild_voice_role_settings (
+        guild_id TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        role_id TEXT,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
   }
 
   public loadAll(): ReadonlyMap<string, string> {
     this.guildChannelCache.clear();
     this.autoJoinCache.clear();
     this.guildSpeechRateCache.clear();
+    this.guildVoiceRoleCache.clear();
 
     const rows = this.db.prepare('SELECT guild_id, channel_id FROM guild_settings').all() as Array<{
       guild_id: string;
@@ -69,6 +79,19 @@ export class GuildSettingsStore {
 
     for (const row of speechRateRows) {
       this.guildSpeechRateCache.set(row.guild_id, parseTtsSpeechRate(row.speech_rate) ?? DEFAULT_TTS_SPEECH_RATE);
+    }
+
+    const voiceRoleRows = this.db.prepare('SELECT guild_id, enabled, role_id FROM guild_voice_role_settings').all() as Array<{
+      guild_id: string;
+      enabled: number;
+      role_id: string | null;
+    }>;
+
+    for (const row of voiceRoleRows) {
+      this.guildVoiceRoleCache.set(row.guild_id, {
+        enabled: row.enabled === 1,
+        roleId: row.role_id
+      });
     }
 
     return new Map(this.guildChannelCache);
@@ -120,6 +143,52 @@ export class GuildSettingsStore {
       .run(guildId, normalizedSpeechRate);
 
     this.guildSpeechRateCache.set(guildId, normalizedSpeechRate);
+  }
+
+  public getVoiceRoleSettings(guildId: string): { enabled: boolean; roleId: string | null } {
+    return this.guildVoiceRoleCache.get(guildId) ?? { enabled: false, roleId: null };
+  }
+
+  public setVoiceRoleEnabled(guildId: string, enabled: boolean): void {
+    const current = this.getVoiceRoleSettings(guildId);
+
+    this.db
+      .prepare(
+        `
+          INSERT INTO guild_voice_role_settings (guild_id, enabled, role_id, updated_at)
+          VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(guild_id) DO UPDATE SET
+            enabled = excluded.enabled,
+            updated_at = CURRENT_TIMESTAMP
+        `
+      )
+      .run(guildId, enabled ? 1 : 0, current.roleId);
+
+    this.guildVoiceRoleCache.set(guildId, {
+      enabled,
+      roleId: current.roleId
+    });
+  }
+
+  public setVoiceRoleId(guildId: string, roleId: string | null): void {
+    const current = this.getVoiceRoleSettings(guildId);
+
+    this.db
+      .prepare(
+        `
+          INSERT INTO guild_voice_role_settings (guild_id, enabled, role_id, updated_at)
+          VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(guild_id) DO UPDATE SET
+            role_id = excluded.role_id,
+            updated_at = CURRENT_TIMESTAMP
+        `
+      )
+      .run(guildId, current.enabled ? 1 : 0, roleId);
+
+    this.guildVoiceRoleCache.set(guildId, {
+      enabled: current.enabled,
+      roleId
+    });
   }
 
   public isAutoJoinEnabled(guildId: string, userId: string): boolean {
