@@ -1,5 +1,6 @@
 import type { Message } from 'discord.js';
 import { maybeAutoJoinFromTextActivity } from '../core/autoJoin';
+import { resolveMemberVoiceState, type ResolvedMemberVoiceState } from '../core/memberVoice';
 import { processMessageForTts } from '../core/messageProcessor';
 import { replaceMentionsForTts } from '../core/ttsContent';
 import type { BotContext } from '../types';
@@ -29,10 +30,59 @@ function resolveTtsContent(message: Message): string {
   });
 }
 
+function shouldResolveMemberVoice(message: Message<true>, context: BotContext): boolean {
+  if (message.author.bot || message.webhookId) {
+    return false;
+  }
+
+  const boundChannelId = context.settingsStore.get(message.guildId);
+  const queueState = context.queueManager.getState(message.guildId);
+  const isBoundTextChannel = boundChannelId === message.channelId;
+  const isLockedVoiceChannelChat = queueState?.lockedVoiceChannelId === message.channelId;
+
+  if (isBoundTextChannel && context.settingsStore.isAutoJoinEnabled(message.guildId, message.author.id)) {
+    return true;
+  }
+
+  return queueState !== null && (isBoundTextChannel || isLockedVoiceChannelChat);
+}
+
+function createProcessMember(message: Message<true>, memberVoice: ResolvedMemberVoiceState | null) {
+  if (memberVoice) {
+    return {
+      displayName: memberVoice.displayName,
+      voice: {
+        channel: memberVoice.voiceChannel
+      }
+    };
+  }
+
+  if (!message.member) {
+    return null;
+  }
+
+  return {
+    displayName: message.member.displayName,
+    voice: {
+      channel: message.member.voice.channel
+    }
+  };
+}
+
 export async function handleMessageCreate(message: Message, context: BotContext): Promise<void> {
   if (!message.inGuild()) {
     return;
   }
+
+  const memberVoice = shouldResolveMemberVoice(message, context)
+    ? await resolveMemberVoiceState({
+        guild: message.guild,
+        userId: message.author.id,
+        fallbackDisplayName: message.member?.displayName ?? message.author.displayName,
+        member: message.member,
+        logger: context.logger
+      })
+    : null;
 
   if (!message.author.bot && !message.webhookId) {
     context.queueManager.recordTextActivity(message.guildId, message.channelId);
@@ -42,8 +92,8 @@ export async function handleMessageCreate(message: Message, context: BotContext)
         guildId: message.guildId,
         userId: message.author.id,
         textChannelId: message.channelId,
-        memberDisplayName: message.member?.displayName ?? message.author.displayName,
-        voiceChannel: message.member?.voice.channel ?? null
+        memberDisplayName: memberVoice?.displayName ?? message.member?.displayName ?? message.author.displayName,
+        voiceChannel: memberVoice?.voiceChannel ?? message.member?.voice.channel ?? null
       },
       {
         settingsStore: context.settingsStore,
@@ -61,14 +111,7 @@ export async function handleMessageCreate(message: Message, context: BotContext)
       guildId: message.guildId,
       channelId: message.channelId,
       content: resolveTtsContent(message),
-      member: message.member
-        ? {
-            displayName: message.member.displayName,
-            voice: {
-              channel: message.member.voice.channel
-            }
-          }
-        : null
+      member: createProcessMember(message, memberVoice)
     },
     {
       settingsStore: context.settingsStore,

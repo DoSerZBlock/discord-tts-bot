@@ -1,5 +1,6 @@
 import type { Typing } from 'discord.js';
 import { maybeAutoJoinFromTextActivity } from '../core/autoJoin';
+import { resolveMemberVoiceState } from '../core/memberVoice';
 import type { BotContext } from '../types';
 import type { EventDefinition } from './event';
 
@@ -20,15 +21,20 @@ export async function handleTypingStart(typing: Typing, context: BotContext): Pr
     return;
   }
 
-  const member = typing.guild.members.cache.get(typing.user.id) ?? (await typing.guild.members.fetch(typing.user.id));
+  const memberVoice = await resolveMemberVoiceState({
+    guild: typing.guild,
+    userId: typing.user.id,
+    fallbackDisplayName: typing.user.displayName,
+    logger: context.logger
+  });
 
   await maybeAutoJoinFromTextActivity(
     {
       guildId: typing.guild.id,
       userId: typing.user.id,
       textChannelId: typing.channel.id,
-      memberDisplayName: member.displayName,
-      voiceChannel: member.voice.channel
+      memberDisplayName: memberVoice.displayName,
+      voiceChannel: memberVoice.voiceChannel
     },
     {
       settingsStore: context.settingsStore,
