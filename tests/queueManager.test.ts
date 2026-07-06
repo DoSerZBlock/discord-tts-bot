@@ -318,6 +318,30 @@ describe('QueueManager', () => {
     expect(queueManager.getState('guild-1')).toBeNull();
   });
 
+  it('resets the inactivity timer when the current voice channel chat has activity', async () => {
+    vi.useFakeTimers();
+
+    const voiceRuntime = new FakeVoiceRuntime();
+    const queueManager = new QueueManager({
+      logger: silentLogger,
+      ttsService: {
+        createAudioResource: vi.fn(async (text: string) => `resource:${text}`)
+      },
+      voiceRuntime
+    });
+
+    await queueManager.enqueue(createPayload());
+
+    vi.advanceTimersByTime(VOICE_SESSION_INACTIVITY_MS - 1_000);
+    expect(queueManager.recordTextActivity('guild-1', 'voice-1')).toBe(true);
+
+    vi.advanceTimersByTime(2_000);
+    expect(queueManager.getState('guild-1')).not.toBeNull();
+
+    vi.advanceTimersByTime(VOICE_SESSION_INACTIVITY_MS);
+    expect(queueManager.getState('guild-1')).toBeNull();
+  });
+
   it('disconnects when the voice channel no longer has human members', async () => {
     const voiceRuntime = new FakeVoiceRuntime();
     const queueManager = new QueueManager({

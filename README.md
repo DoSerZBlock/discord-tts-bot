@@ -9,6 +9,7 @@ It is designed for multi-guild usage with persistent guild settings, per-guild v
 ## Features
 
 - Per-guild TTS text-channel binding with SQLite persistence
+- Reads messages from the current voice channel's built-in text chat after the bot has joined voice
 - Independent voice queue and voice session per guild
 - Embed-based `/config` panel for personal and guild settings
 - Per-user auto-join toggle inside each guild
@@ -126,6 +127,6 @@ SQLite data is persisted through the `./data:/app/data` volume mapping.
 
 ## Notes
 
-- The bot only reads messages from the bound text channel for each guild.
+- The bot only reads messages from the bound text channel for each guild, plus the built-in text chat of the voice channel it is currently in.
 - If a guild voice session is already locked to another voice channel, messages from other voice channels in that guild are ignored.
-- The bot keeps waiting in voice after playback and disconnects later if the bound text channel stays inactive long enough.
+- The bot keeps waiting in voice after playback and disconnects later if both the bound text channel and current voice channel chat stay inactive long enough.

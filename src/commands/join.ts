@@ -53,8 +53,8 @@ export const joinCommand: CommandDefinition = {
       title: result.status === 'joined' ? '已加入語音頻道' : '已在語音頻道中',
       description:
         result.status === 'joined'
-          ? `我已加入 <#${voiceChannel.id}>，之後會等待綁定文字頻道的新訊息。`
-          : `我已經在 <#${voiceChannel.id}> 了，現在會繼續待機。`
+          ? `我已加入 <#${voiceChannel.id}>，之後會等待綁定文字頻道或此語音頻道聊天室的新訊息。`
+          : `我已經在 <#${voiceChannel.id}> 了，現在會繼續待機並朗讀此語音頻道聊天室。`
     });
   }
 };

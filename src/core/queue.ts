@@ -226,7 +226,7 @@ export class QueueManager {
   public recordTextActivity(guildId: string, textChannelId: string): boolean {
     const queue = this.queues.get(guildId);
 
-    if (!queue || queue.textChannelId !== textChannelId) {
+    if (!queue || (queue.textChannelId !== textChannelId && queue.voiceChannelId !== textChannelId)) {
       return false;
     }
 

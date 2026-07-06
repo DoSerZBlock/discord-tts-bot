@@ -32,7 +32,7 @@ export async function processMessageForTts(
 
   const boundChannelId = dependencies.settingsStore.get(message.guildId);
 
-  if (!boundChannelId || boundChannelId !== message.channelId) {
+  if (!boundChannelId) {
     return 'ignored';
   }
 
@@ -45,6 +45,13 @@ export async function processMessageForTts(
   const queueState = dependencies.queueManager.getState(message.guildId);
 
   if (!queueState) {
+    return 'ignored';
+  }
+
+  const isBoundTextChannel = boundChannelId === message.channelId;
+  const isLockedVoiceChannelChat = queueState.lockedVoiceChannelId === message.channelId;
+
+  if (!isBoundTextChannel && !isLockedVoiceChannelChat) {
     return 'ignored';
   }
 
