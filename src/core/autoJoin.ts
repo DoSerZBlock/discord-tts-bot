@@ -16,7 +16,7 @@ export async function maybeAutoJoinFromTextActivity(
 ): Promise<boolean> {
   const boundChannelId = dependencies.settingsStore.get(input.guildId);
 
-  if (!boundChannelId || boundChannelId !== input.textChannelId) {
+  if (!boundChannelId) {
     return false;
   }
 
@@ -25,6 +25,13 @@ export async function maybeAutoJoinFromTextActivity(
   }
 
   if (!input.voiceChannel) {
+    return false;
+  }
+
+  const isBoundTextChannel = boundChannelId === input.textChannelId;
+  const isCurrentVoiceChannelChat = input.voiceChannel.id === input.textChannelId;
+
+  if (!isBoundTextChannel && !isCurrentVoiceChannelChat) {
     return false;
   }
 

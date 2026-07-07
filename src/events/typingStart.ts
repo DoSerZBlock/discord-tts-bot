@@ -1,8 +1,12 @@
-import type { Typing } from 'discord.js';
+import { ChannelType, type Typing } from 'discord.js';
 import { maybeAutoJoinFromTextActivity } from '../core/autoJoin';
 import { resolveMemberVoiceState } from '../core/memberVoice';
 import type { BotContext } from '../types';
 import type { EventDefinition } from './event';
+
+function canTypingTriggerAutoJoin(channel: Pick<Typing['channel'], 'id' | 'type'>, boundChannelId: string): boolean {
+  return channel.id === boundChannelId || channel.type === ChannelType.GuildVoice || channel.type === ChannelType.GuildStageVoice;
+}
 
 export async function handleTypingStart(typing: Typing, context: BotContext): Promise<void> {
   if (!typing.inGuild() || typing.user.bot) {
@@ -13,11 +17,15 @@ export async function handleTypingStart(typing: Typing, context: BotContext): Pr
 
   const boundChannelId = context.settingsStore.get(typing.guild.id);
 
-  if (!boundChannelId || boundChannelId !== typing.channel.id) {
+  if (!boundChannelId) {
     return;
   }
 
   if (!context.settingsStore.isAutoJoinEnabled(typing.guild.id, typing.user.id)) {
+    return;
+  }
+
+  if (!canTypingTriggerAutoJoin(typing.channel, boundChannelId)) {
     return;
   }
 

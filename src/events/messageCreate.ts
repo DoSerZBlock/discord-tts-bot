@@ -1,4 +1,4 @@
-import type { Message } from 'discord.js';
+import { ChannelType, type Message } from 'discord.js';
 import { maybeAutoJoinFromTextActivity } from '../core/autoJoin';
 import { resolveMemberVoiceState, type ResolvedMemberVoiceState } from '../core/memberVoice';
 import { processMessageForTts } from '../core/messageProcessor';
@@ -39,8 +39,9 @@ function shouldResolveMemberVoice(message: Message<true>, context: BotContext): 
   const queueState = context.queueManager.getState(message.guildId);
   const isBoundTextChannel = boundChannelId === message.channelId;
   const isLockedVoiceChannelChat = queueState?.lockedVoiceChannelId === message.channelId;
+  const isVoiceChannelChat = message.channel.type === ChannelType.GuildVoice || message.channel.type === ChannelType.GuildStageVoice;
 
-  if (isBoundTextChannel && context.settingsStore.isAutoJoinEnabled(message.guildId, message.author.id)) {
+  if ((isBoundTextChannel || isVoiceChannelChat) && context.settingsStore.isAutoJoinEnabled(message.guildId, message.author.id)) {
     return true;
   }
 
