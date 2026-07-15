@@ -1,5 +1,6 @@
 import { ChannelType, type Message } from 'discord.js';
 import { maybeAutoJoinFromTextActivity } from '../core/autoJoin';
+import { startsWithIgnoredPrefix } from '../core/ignoredPrefixes';
 import { resolveMemberVoiceState, type ResolvedMemberVoiceState } from '../core/memberVoice';
 import { processMessageForTts } from '../core/messageProcessor';
 import { replaceMentionsForTts } from '../core/ttsContent';
@@ -75,6 +76,16 @@ export async function handleMessageCreate(message: Message, context: BotContext)
     return;
   }
 
+  if (message.author.bot || message.webhookId) {
+    return;
+  }
+
+  const ignoredPrefixes = context.settingsStore.getIgnoredPrefixes(message.guildId);
+
+  if (startsWithIgnoredPrefix(message.content, ignoredPrefixes)) {
+    return;
+  }
+
   const memberVoice = shouldResolveMemberVoice(message, context)
     ? await resolveMemberVoiceState({
         guild: message.guild,
@@ -85,23 +96,21 @@ export async function handleMessageCreate(message: Message, context: BotContext)
       })
     : null;
 
-  if (!message.author.bot && !message.webhookId) {
-    context.queueManager.recordTextActivity(message.guildId, message.channelId);
+  context.queueManager.recordTextActivity(message.guildId, message.channelId);
 
-    await maybeAutoJoinFromTextActivity(
-      {
-        guildId: message.guildId,
-        userId: message.author.id,
-        textChannelId: message.channelId,
-        memberDisplayName: memberVoice?.displayName ?? message.member?.displayName ?? message.author.displayName,
-        voiceChannel: memberVoice?.voiceChannel ?? message.member?.voice.channel ?? null
-      },
-      {
-        settingsStore: context.settingsStore,
-        queueManager: context.queueManager
-      }
-    );
-  }
+  await maybeAutoJoinFromTextActivity(
+    {
+      guildId: message.guildId,
+      userId: message.author.id,
+      textChannelId: message.channelId,
+      memberDisplayName: memberVoice?.displayName ?? message.member?.displayName ?? message.author.displayName,
+      voiceChannel: memberVoice?.voiceChannel ?? message.member?.voice.channel ?? null
+    },
+    {
+      settingsStore: context.settingsStore,
+      queueManager: context.queueManager
+    }
+  );
 
   await processMessageForTts(
     {
