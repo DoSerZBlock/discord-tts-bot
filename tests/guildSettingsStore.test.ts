@@ -113,6 +113,34 @@ describe('GuildSettingsStore', () => {
     secondStore.close();
   });
 
+  it('supports ignored prefix CRUD and reloads the cache from sqlite', () => {
+    const databasePath = createDatabasePath();
+    const firstStore = new GuildSettingsStore(databasePath);
+
+    firstStore.loadAll();
+    expect(firstStore.getIgnoredPrefixes('guild-1')).toEqual([]);
+    expect(firstStore.addIgnoredPrefix('guild-1', '!')).toBe(true);
+    expect(firstStore.addIgnoredPrefix('guild-1', '!!')).toBe(true);
+    expect(firstStore.addIgnoredPrefix('guild-1', '!')).toBe(false);
+    expect(firstStore.getIgnoredPrefixes('guild-1')).toEqual(['!!', '!']);
+    expect(firstStore.replaceIgnoredPrefix('guild-1', '?', '$')).toBe('not_found');
+    expect(firstStore.replaceIgnoredPrefix('guild-1', '!', '!!')).toBe('duplicate');
+    expect(firstStore.replaceIgnoredPrefix('guild-1', '!', '!')).toBe('unchanged');
+    expect(firstStore.replaceIgnoredPrefix('guild-1', '!', '?')).toBe('updated');
+    expect(firstStore.removeIgnoredPrefix('guild-1', 'missing')).toBe(false);
+    expect(firstStore.removeIgnoredPrefix('guild-1', '!!')).toBe(true);
+    expect(firstStore.getIgnoredPrefixes('guild-1')).toEqual(['?']);
+    firstStore.close();
+
+    const secondStore = new GuildSettingsStore(databasePath);
+    secondStore.loadAll();
+
+    expect(secondStore.getIgnoredPrefixes('guild-1')).toEqual(['?']);
+    expect(secondStore.clearIgnoredPrefixes('guild-1')).toBe(1);
+    expect(secondStore.getIgnoredPrefixes('guild-1')).toEqual([]);
+    secondStore.close();
+  });
+
   it('loads legacy speech-rate values stored as normal or slow', () => {
     const databasePath = createDatabasePath();
     const store = new GuildSettingsStore(databasePath);
