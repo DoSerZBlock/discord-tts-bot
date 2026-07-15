@@ -3,12 +3,15 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_TTS_SPEECH_RATE, normalizeTtsSpeechRate, parseTtsSpeechRate, type TtsSpeechRate } from './ttsSettings';
 
+export type ReplaceIgnoredPrefixResult = 'updated' | 'not_found' | 'duplicate' | 'unchanged';
+
 export class GuildSettingsStore {
   private readonly db: Database.Database;
   private readonly guildChannelCache = new Map<string, string>();
   private readonly autoJoinCache = new Map<string, Set<string>>();
   private readonly guildSpeechRateCache = new Map<string, TtsSpeechRate>();
   private readonly guildVoiceRoleCache = new Map<string, { enabled: boolean; roleId: string | null }>();
+  private readonly guildIgnoredPrefixCache = new Map<string, Set<string>>();
 
   public constructor(databasePath: string) {
     mkdirSync(path.dirname(databasePath), { recursive: true });
@@ -44,6 +47,14 @@ export class GuildSettingsStore {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS guild_ignored_prefixes (
+        guild_id TEXT NOT NULL,
+        prefix TEXT NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (guild_id, prefix)
+      );
+    `);
   }
 
   public loadAll(): ReadonlyMap<string, string> {
@@ -51,6 +62,7 @@ export class GuildSettingsStore {
     this.autoJoinCache.clear();
     this.guildSpeechRateCache.clear();
     this.guildVoiceRoleCache.clear();
+    this.guildIgnoredPrefixCache.clear();
 
     const rows = this.db.prepare('SELECT guild_id, channel_id FROM guild_settings').all() as Array<{
       guild_id: string;
@@ -94,6 +106,17 @@ export class GuildSettingsStore {
       });
     }
 
+    const ignoredPrefixRows = this.db.prepare('SELECT guild_id, prefix FROM guild_ignored_prefixes').all() as Array<{
+      guild_id: string;
+      prefix: string;
+    }>;
+
+    for (const row of ignoredPrefixRows) {
+      const guildPrefixes = this.guildIgnoredPrefixCache.get(row.guild_id) ?? new Set<string>();
+      guildPrefixes.add(row.prefix);
+      this.guildIgnoredPrefixCache.set(row.guild_id, guildPrefixes);
+    }
+
     return new Map(this.guildChannelCache);
   }
 
@@ -121,6 +144,96 @@ export class GuildSettingsStore {
     const result = this.db.prepare('DELETE FROM guild_settings WHERE guild_id = ?').run(guildId);
     this.guildChannelCache.delete(guildId);
     return result.changes > 0;
+  }
+
+  public getIgnoredPrefixes(guildId: string): readonly string[] {
+    return [...(this.guildIgnoredPrefixCache.get(guildId) ?? [])].sort(
+      (left, right) => right.length - left.length || left.localeCompare(right)
+    );
+  }
+
+  public addIgnoredPrefix(guildId: string, prefix: string): boolean {
+    const result = this.db
+      .prepare(
+        `
+          INSERT OR IGNORE INTO guild_ignored_prefixes (guild_id, prefix, updated_at)
+          VALUES (?, ?, CURRENT_TIMESTAMP)
+        `
+      )
+      .run(guildId, prefix);
+
+    if (result.changes === 0) {
+      return false;
+    }
+
+    const guildPrefixes = this.guildIgnoredPrefixCache.get(guildId) ?? new Set<string>();
+    guildPrefixes.add(prefix);
+    this.guildIgnoredPrefixCache.set(guildId, guildPrefixes);
+    return true;
+  }
+
+  public removeIgnoredPrefix(guildId: string, prefix: string): boolean {
+    const result = this.db
+      .prepare('DELETE FROM guild_ignored_prefixes WHERE guild_id = ? AND prefix = ?')
+      .run(guildId, prefix);
+
+    if (result.changes === 0) {
+      return false;
+    }
+
+    const guildPrefixes = this.guildIgnoredPrefixCache.get(guildId);
+    guildPrefixes?.delete(prefix);
+
+    if (guildPrefixes?.size === 0) {
+      this.guildIgnoredPrefixCache.delete(guildId);
+    }
+
+    return true;
+  }
+
+  public replaceIgnoredPrefix(
+    guildId: string,
+    currentPrefix: string,
+    replacementPrefix: string
+  ): ReplaceIgnoredPrefixResult {
+    const guildPrefixes = this.guildIgnoredPrefixCache.get(guildId);
+
+    if (!guildPrefixes?.has(currentPrefix)) {
+      return 'not_found';
+    }
+
+    if (currentPrefix === replacementPrefix) {
+      return 'unchanged';
+    }
+
+    if (guildPrefixes.has(replacementPrefix)) {
+      return 'duplicate';
+    }
+
+    const replacePrefix = this.db.transaction(() => {
+      this.db
+        .prepare('DELETE FROM guild_ignored_prefixes WHERE guild_id = ? AND prefix = ?')
+        .run(guildId, currentPrefix);
+      this.db
+        .prepare(
+          `
+            INSERT INTO guild_ignored_prefixes (guild_id, prefix, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+          `
+        )
+        .run(guildId, replacementPrefix);
+    });
+
+    replacePrefix();
+    guildPrefixes.delete(currentPrefix);
+    guildPrefixes.add(replacementPrefix);
+    return 'updated';
+  }
+
+  public clearIgnoredPrefixes(guildId: string): number {
+    const result = this.db.prepare('DELETE FROM guild_ignored_prefixes WHERE guild_id = ?').run(guildId);
+    this.guildIgnoredPrefixCache.delete(guildId);
+    return result.changes;
   }
 
   public getSpeechRate(guildId: string): TtsSpeechRate {

@@ -14,6 +14,7 @@ English version: [README.md](./README.md)
 - 提供 embed 形式的 `/config` 設定面板，可調整個人與 guild 設定
 - 使用者可在各自 guild 內切換個人 auto-join
 - 每個 guild 都能設定獨立的 TTS 倍速，支援預設選項與 `0.5x` 到 `2.0x` 的自訂輸入
+- 每個 guild 可設定最多 25 個忽略前綴，避免其他機器人的文字指令被朗讀
 - 訊息在朗讀前會先做 TTS 清理，包含：
   - mentions 替換
   - 自訂 emoji 縮短
@@ -28,6 +29,16 @@ English version: [README.md](./README.md)
   重新同步目前 bot 的 slash commands。
 - `/config`
   開啟 embed 設定面板。個人的 auto-join 設定是「每個 guild 各自分開」，TTS 倍速則是「每個 guild 一份」。
+- `/prefix add prefix:<前綴>`
+  新增不會被朗讀的訊息前綴。
+- `/prefix list`
+  查看目前 guild 的所有忽略前綴。
+- `/prefix update current:<舊前綴> replacement:<新前綴>`
+  替換既有忽略前綴。
+- `/prefix remove prefix:<前綴>`
+  移除一個忽略前綴。
+- `/prefix clear`
+  清除目前 guild 的所有忽略前綴。
 - `/settts [channel]`
   設定要朗讀的文字頻道。
 - `/cleartts`
@@ -47,8 +58,10 @@ English version: [README.md](./README.md)
   以「使用者 + guild」為單位儲存。
 - TTS 倍速：
   以 guild 為單位儲存。
+- 忽略前綴：
+  以 guild 為單位儲存，訊息忽略開頭空白後，只要以任一設定前綴開頭，就不會觸發自動加入或 TTS 朗讀。
 
-所以你在 A guild 設定的倍速，不會影響 B guild。
+所以你在 A guild 設定的倍速或忽略前綴，不會影響 B guild。
 
 ## 環境需求
 
