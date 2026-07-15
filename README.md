@@ -14,6 +14,7 @@ It is designed for multi-guild usage with persistent guild settings, per-guild v
 - Embed-based `/config` panel for personal and guild settings
 - Per-user auto-join toggle inside each guild
 - Per-guild TTS playback speed, with presets and custom input from `0.5x` to `2.0x`
+- Up to 25 ignored message prefixes per guild to prevent other bots' text commands from being read aloud
 - Message cleanup for TTS, including:
   - mention replacement
   - custom emoji shortening
@@ -28,6 +29,16 @@ It is designed for multi-guild usage with persistent guild settings, per-guild v
   Re-sync slash commands for the current bot deployment.
 - `/config`
   Open the embed settings panel. Personal auto-join is stored per user per guild. TTS speed is stored per guild.
+- `/prefix add prefix:<prefix>`
+  Add a message prefix that should not be read aloud.
+- `/prefix list`
+  List all ignored prefixes for the current guild.
+- `/prefix update current:<old-prefix> replacement:<new-prefix>`
+  Replace an existing ignored prefix.
+- `/prefix remove prefix:<prefix>`
+  Remove an ignored prefix.
+- `/prefix clear`
+  Clear all ignored prefixes for the current guild.
 - `/settts [channel]`
   Set the text channel that should be read aloud.
 - `/cleartts`
@@ -47,8 +58,10 @@ It is designed for multi-guild usage with persistent guild settings, per-guild v
   Stored per user per guild.
 - TTS speed:
   Stored per guild.
+- Ignored prefixes:
+  Stored per guild. After leading whitespace is ignored, a message that starts with any configured prefix does not trigger auto-join or TTS playback.
 
-Changing the speed in one guild does not affect other guilds.
+Changing the speed or ignored prefixes in one guild does not affect other guilds.
 
 ## Requirements
 
