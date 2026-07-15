@@ -3,6 +3,8 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_TTS_SPEECH_RATE, normalizeTtsSpeechRate, parseTtsSpeechRate, type TtsSpeechRate } from './ttsSettings';
 
+export type ReplaceIgnoredPrefixResult = 'updated' | 'not_found' | 'duplicate' | 'unchanged';
+
 export class GuildSettingsStore {
   private readonly db: Database.Database;
   private readonly guildChannelCache = new Map<string, string>();
@@ -187,6 +189,45 @@ export class GuildSettingsStore {
     }
 
     return true;
+  }
+
+  public replaceIgnoredPrefix(
+    guildId: string,
+    currentPrefix: string,
+    replacementPrefix: string
+  ): ReplaceIgnoredPrefixResult {
+    const guildPrefixes = this.guildIgnoredPrefixCache.get(guildId);
+
+    if (!guildPrefixes?.has(currentPrefix)) {
+      return 'not_found';
+    }
+
+    if (currentPrefix === replacementPrefix) {
+      return 'unchanged';
+    }
+
+    if (guildPrefixes.has(replacementPrefix)) {
+      return 'duplicate';
+    }
+
+    const replacePrefix = this.db.transaction(() => {
+      this.db
+        .prepare('DELETE FROM guild_ignored_prefixes WHERE guild_id = ? AND prefix = ?')
+        .run(guildId, currentPrefix);
+      this.db
+        .prepare(
+          `
+            INSERT INTO guild_ignored_prefixes (guild_id, prefix, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+          `
+        )
+        .run(guildId, replacementPrefix);
+    });
+
+    replacePrefix();
+    guildPrefixes.delete(currentPrefix);
+    guildPrefixes.add(replacementPrefix);
+    return 'updated';
   }
 
   public clearIgnoredPrefixes(guildId: string): number {
