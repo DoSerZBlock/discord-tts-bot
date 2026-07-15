@@ -44,6 +44,7 @@ describe('handleMessageCreate', () => {
       },
       settingsStore: {
         get: () => 'text-1',
+        getIgnoredPrefixes: () => [],
         getSpeechRate: () => 1.25,
         isAutoJoinEnabled: () => true
       },
@@ -127,6 +128,7 @@ describe('handleMessageCreate', () => {
       },
       settingsStore: {
         get: () => 'text-1',
+        getIgnoredPrefixes: () => [],
         getSpeechRate: () => 1.25,
         isAutoJoinEnabled: () => true
       },
@@ -186,5 +188,67 @@ describe('handleMessageCreate', () => {
         speechRate: 1.25
       })
     );
+  });
+
+  it('ignores configured command prefixes before resolving voice state or auto joining', async () => {
+    const fetchVoiceState = vi.fn();
+    const recordTextActivity = vi.fn();
+    const connect = vi.fn();
+    const enqueue = vi.fn();
+    const getBoundChannel = vi.fn(() => 'text-1');
+
+    const context = {
+      logger: {
+        warn: vi.fn()
+      },
+      settingsStore: {
+        get: getBoundChannel,
+        getIgnoredPrefixes: () => ['!', ';;'],
+        getSpeechRate: () => 1,
+        isAutoJoinEnabled: () => true
+      },
+      queueManager: {
+        recordTextActivity,
+        connect,
+        enqueue,
+        getState: vi.fn()
+      }
+    };
+
+    const message = {
+      inGuild: () => true,
+      guildId: 'guild-1',
+      channelId: 'text-1',
+      channel: {
+        type: ChannelType.GuildText
+      },
+      content: '   !play never-gonna-give-you-up',
+      author: {
+        id: 'user-1',
+        bot: false,
+        displayName: 'Alice'
+      },
+      webhookId: null,
+      member: null,
+      guild: {
+        id: 'guild-1',
+        members: {
+          cache: new Map()
+        },
+        voiceStates: {
+          cache: new Map(),
+          fetch: fetchVoiceState
+        }
+      },
+      mentions: createMentions()
+    };
+
+    await handleMessageCreate(message as never, context as never);
+
+    expect(getBoundChannel).not.toHaveBeenCalled();
+    expect(fetchVoiceState).not.toHaveBeenCalled();
+    expect(recordTextActivity).not.toHaveBeenCalled();
+    expect(connect).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
   });
 });
